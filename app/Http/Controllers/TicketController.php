@@ -34,6 +34,7 @@ class TicketController extends Controller
             'price' => $data['price'],
             'qr_payload' => $ticket_code,
             'status' => 'valid',
+            'qrcodesvg' => $ticket_code.'svg'
         ]);
 
         $reference = 'ref_' . Str::random(12);

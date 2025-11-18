@@ -20,9 +20,9 @@ class PaystackController extends Controller
         $secret = config('services.paystack.secret') ?? env('PAYSTACK_SECRET_KEY');
         $this->paystack = new Paystack($secret);
 
-        // Ensure the temp QR folder exists
-        if (!Storage::disk('local')->exists('qr_temp')) {
-            Storage::disk('local')->makeDirectory('qr_temp');
+        // Ensure public storage qrcodes folder exists
+        if (!Storage::disk('public')->exists('qrcodes')) {
+            Storage::disk('public')->makeDirectory('qrcodes');
         }
     }
 
@@ -37,18 +37,24 @@ class PaystackController extends Controller
 
         $init = $this->paystack->transaction->initialize([
             'amount' => (int) ($payment->amount * 100),
-            'email' => $ticket->buyer_email,
+            'email'  => $ticket->buyer_email,
             'reference' => $payment->reference,
             'callback_url' => $callback_url,
-            'channel' => ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer', 'pos', 'eft', 'payattitude', 'barter', 'open_banking', 'mobile_money_rwanda', 'mobile_money_uganda', 'mobile_money_zambia', 'mobile_money_tanzania'],
+            'channel' => [
+                'card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer',
+                'pos', 'eft', 'payattitude', 'barter', 'open_banking',
+                'mobile_money_rwanda', 'mobile_money_uganda',
+                'mobile_money_zambia', 'mobile_money_tanzania'
+            ],
             'metadata' => [
-                'ticket_id' => $ticket->id,
+                'ticket_id'   => $ticket->id,
                 'ticket_code' => $ticket->ticket_code,
             ],
         ]);
 
         if (!isset($init->data->authorization_url)) {
-            return redirect()->route('tickets.buy')->with('error', 'Unable to initialize payment');
+            return redirect()->route('tickets.buy')
+                ->with('error', 'Unable to initialize payment');
         }
 
         return redirect($init->data->authorization_url);
@@ -65,55 +71,97 @@ class PaystackController extends Controller
 
         $payment = Payment::where('reference', $reference)->firstOrFail();
 
-        // Verify transaction
+        // Verify payment
         $verify = $this->paystack->transaction->verify([
             'reference' => $reference,
         ]);
 
-        if ($verify->data->status === 'success') {
-            // Mark payment success
-            $payment->update([
-                'status' => 'success',
-                'meta' => json_encode($verify->data),
-            ]);
-
-            $ticket = $payment->ticket;
-
-            // Generate QR code (PNG fallback)
-            try {
-                $pngBinary = QrCode::format('png')
-                    ->size(300)
-                    ->errorCorrection('H')
-                    ->generate($ticket->qr_payload);
-
-                $dataUri = 'data:image/png;base64,' . base64_encode($pngBinary);
-            } catch (Exception $e) {
-                // Fallback SVG
-                $svg = QrCode::format('svg')
-                    ->size(300)
-                    ->errorCorrection('H')
-                    ->generate($ticket->qr_payload);
-
-                $dataUri = 'data:image/svg+xml;base64,' . base64_encode($svg);
-            }
-
-            // Send ticket email
-            Mail::to($ticket->buyer_email)->send(new TicketMail($ticket, $dataUri));
-
-            return view('tickets.success', [
-                'ticket' => $ticket,
-                'dataUri' => $dataUri
-            ]);
-
-        } else {
-            // Payment failed
+        if ($verify->data->status !== 'success') {
             $payment->update([
                 'status' => 'failed',
-                'meta' => json_encode($verify->data),
+                'meta'   => json_encode($verify->data),
             ]);
 
             return redirect()->route('tickets.buy')->with('error', 'Payment failed.');
         }
+
+        // Payment success
+        $payment->update([
+            'status' => 'success',
+            'meta'   => json_encode($verify->data),
+        ]);
+
+        $ticket = $payment->ticket;
+
+
+        /**
+         * ----------------------------
+         *  GENERATE + SAVE QR CODE
+         * ----------------------------
+         */
+        $fileName = $ticket->ticket_code . '.png';
+        $filePath = 'qrcodes/' . $fileName;
+
+        try {
+            // Generate PNG QR
+            $qrPng = QrCode::format('png')
+                ->size(300)
+                ->errorCorrection('H')
+                ->generate($ticket->qr_payload);
+
+            // Save to public/storage/qrcodes/
+            Storage::disk('public')->put($filePath, $qrPng);
+
+            // Base64 for email & view
+            $dataUri = 'data:image/png;base64,' . base64_encode($qrPng);
+
+        } catch (Exception $e) {
+            \Log::error("QR PNG failed: " . $e->getMessage());
+
+            // SVG fallback
+            try {
+                $qrSvg = QrCode::format('svg')
+                    ->size(300)
+                    ->errorCorrection('H')
+                    ->generate($ticket->qr_payload);
+
+                $fileName = $ticket->ticket_code . '.svg';
+                $filePath = 'qrcodes/' . $fileName;
+
+                Storage::disk('public')->put($filePath, $qrSvg);
+
+                $dataUri = 'data:image/svg+xml;base64,' . base64_encode($qrSvg);
+
+            } catch (Exception $e2) {
+                \Log::error("QR SVG failed: " . $e2->getMessage());
+                return redirect()->route('tickets.buy')->with('error', 'QR Code generation failed.');
+            }
+        }
+
+
+        /**
+         * ----------------------------
+         *  SEND EMAIL WITH QR
+         * ----------------------------
+         */
+        
+        // Mail::to($ticket->buyer_email)->send(new TicketMail($ticket, $filePath));
+        try {
+            Mail::to($ticket->buyer_email)->send(new TicketMail($ticket, $filePath, $dataUri));
+        } catch (Exception $e) {
+            \Log::error("Email sending failed: " . $e->getMessage());
+            // Optionally, you can choose to notify the user about email failure here
+        }
+        
+
+        /**
+         * ----------------------------
+         *  RETURN SUCCESS VIEW
+         * ----------------------------
+         */
+        return view('tickets.success', [
+            'ticket' => $ticket,
+            'dataUri' => $dataUri
+        ]);
     }
 }
-

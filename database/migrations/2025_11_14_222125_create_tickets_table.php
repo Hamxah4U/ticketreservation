@@ -19,6 +19,8 @@ return new class extends Migration
             $table->decimal('price', 10, 2)->default(0);
             $table->string('qr_payload')->nullable();
             $table->enum('status', ['valid', 'used'])->default('valid');
+            $table->string('seat_number')->nullable();
+            $table->string('qrcodesvg')->nullable();
             $table->timestamp('used_at')->nullable();
             $table->timestamps();
         });

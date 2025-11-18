@@ -70,9 +70,9 @@
             <p>Hello <strong>{{ $ticket->buyer_name }}</strong>,</p>
             <p>Thank you for your purchase! Your event ticket is ready. Please present the QR code below at the event gate.</p>
             <!-- QR CODE -->
-            <div class="qr-box">
+            {{-- <div class="qr-box">
                 <img src="{{ $qrDataUri }}" alt="QR Code" />
-            </div>
+            </div> --}}
 
             <table class="ticket-info">
                 <tr>
@@ -87,6 +87,9 @@
                     <td><strong>Amount Paid:</strong></td>
                     <td style="text-align:right;">₦{{ number_format($ticket->price, 2) }}</td>
                 </tr>
+                <p>
+                    This ticket is for personal use only. Do NOT allow anyone to scan this QR code. If scanned by another person, the ticket will become invalid
+                </p>
             </table>
 
             <p style="font-size:14px; color:#444;">
