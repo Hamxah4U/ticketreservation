@@ -2,7 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\SessionController;
 use App\Http\Controllers\PaystackController;
+use App\Http\Controllers\Admin\ScanController;
 use App\Http\Controllers\VerificationController;
 
 Route::get('/', function() {
@@ -20,4 +22,26 @@ Route::get('/paystack/callback', [PaystackController::class,'callback'])->name('
 // verification endpoint used by scanner
 Route::get('/verify', [VerificationController::class,'verify'])->name('tickets.verify');
 
+// Admin login page
+Route::get('/admin/login', [SessionController::class,'create'])->name('admin.login');
 
+// Login submission
+Route::post('/admin/login', [SessionController::class,'adminLogin'])->name('admin.login.post');
+
+// Protected admin pages
+Route::middleware('auth')->group(function () {
+
+    Route::get('/dashboard', function () {
+        return view('dashboard.index');
+    })->name('admin.dashboard.index');
+
+    Route::post('/admin/tickets/{ticket}/invalidate', [TicketController::class,'invalidate'])
+        ->name('admin.tickets.invalidate');
+
+
+    Route::get('/admin/scan', fn() => view('dashboard.scan'))->name('dashboard.scan');
+    Route::get('/admin/scan/check', [ScanController::class,'check']);
+
+    Route::post('/logout', [SessionController::class,'destroy'])
+        ->name('admin.logout');
+});
