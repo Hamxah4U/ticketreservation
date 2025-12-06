@@ -57,7 +57,7 @@
                                 name="price" 
                                 class="form-control form-control-lg"
                                 step="0.01" 
-                                value="5000" 
+                                value="100" 
                                 required
                                 readonly>
                         </div>
