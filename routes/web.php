@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\PaystackController;
-use App\Http\Controllers\Admin\ScanController;
+use App\Http\Controllers\ScanController;
 use App\Http\Controllers\VerificationController;
 
 Route::get('/', function() {
@@ -38,10 +38,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/tickets/{ticket}/invalidate', [TicketController::class,'invalidate'])
         ->name('admin.tickets.invalidate');
 
-
     Route::get('/admin/scan', fn() => view('dashboard.scan'))->name('dashboard.scan');
-    Route::get('/admin/scan/check', [ScanController::class,'check']);
 
-    Route::post('/logout', [SessionController::class,'destroy'])
-        ->name('admin.logout');
+    Route::get('/admin/scan/check', [ScanController::class, 'check'])->name('admin.scan.check');
+    Route::post('/admin/tickets/{ticket}/invalidate', [TicketController::class,'invalidate'])
+        ->name('admin.tickets.invalidate');
+
+    Route::post('/logout', [SessionController::class,'destroy'])->name('admin.logout');
 });

@@ -2,105 +2,196 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Buy Ticket</title>
+    <title>Event Ticket Validator</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        #reader {
+            border: 4px solid #ddd;
+            border-radius: 14px;
+            overflow: hidden;
+        }
+    </style>
 </head>
 
 <body class="bg-light">
 
-
-<div class="container-fluid">
-
+<div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-lg-6 col-md-8">
 
-            <div class="card shadow-sm border-0">
+            <div class="card shadow border-0">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">QR Code Validator</h4>
+                    <h4 class="mb-0">🎟️ Live QR Code Validator</h4>
                 </div>
 
                 <div class="card-body">
 
-                    <p class="text-muted mb-3">
-                        Point your camera at a ticket’s QR code to validate it.
-                    </p>
+                    <p class="text-muted">Point your phone camera at a QR code for instant validation.</p>
 
-                    <div class="d-flex justify-content-center mb-4">
-                        <div id="reader" style="width:320px;"></div>
+                    <div class="text-center mb-3">
+                        <div id="reader" style="width:100%; max-width:420px; margin:auto;"></div>
                     </div>
 
-                    <div id="result"></div>
+                    <div id="live-status" class="alert alert-info text-center fw-bold">
+                        Awaiting Scan...
+                    </div>
+
+                    <hr>
+
+                    <!-- Manual Lookup -->
+                    <form id="manual-scan-form">
+                        <h5 class="text-primary mb-2 fw-bold">Manual Lookup</h5>
+                        <div class="input-group mb-2">
+                            <input type="text" id="manual-code" class="form-control form-control-lg"
+                                   placeholder="Enter Ticket Code" required>
+                            <button class="btn btn-secondary btn-lg" type="submit">Check</button>
+                        </div>
+                    </form>
 
                 </div>
             </div>
 
         </div>
     </div>
-
 </div>
 
-{{-- QR Scanner --}}
+<!-- QR Scanner -->
 <script src="https://unpkg.com/html5-qrcode"></script>
-
-{{-- SweetAlert2 --}}
+<!-- SweetAlert -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-{{-- SOUND EFFECTS --}}
-<audio id="successSound">
-    <source src="/sounds/success.mp3" type="audio/mpeg">
-</audio>
-
-<audio id="errorSound">
-    <source src="/sounds/error.mp3" type="audio/mpeg">
-</audio>
+<!-- Sounds -->
+<audio id="successSound" src="/sounds/success.mp3" preload="auto"></audio>
+<audio id="errorSound" src="/sounds/error.mp3" preload="auto"></audio>
+<audio id="usedSound" src="/sounds/used.mp3" preload="auto"></audio>
 
 <script>
-let scannerInstance;
-let scanStopped = false;
+let scanner;
+let isProcessing = false;
 
-function onScanSuccess(decodedText) {
+const successSound = document.getElementById("successSound");
+const errorSound   = document.getElementById("errorSound");
+const usedSound    = document.getElementById("usedSound");
+const liveStatus   = document.getElementById("live-status");
+const inputManual  = document.getElementById("manual-code");
+const manualForm   = document.getElementById("manual-scan-form");
 
-    if (scanStopped) return;
-    scanStopped = true;
+// ===========================================
+// MAIN CHECK FUNCTION
+// ===========================================
+async function checkTicket(code, isManual = false) {
 
-    fetch("/admin/scan/check?code=" + decodedText)
-        .then(res => res.json())
-        .then(data => {
+    if (isProcessing || !code) return;
+    isProcessing = true;
 
-            // Play sound
-            if (data.status === "success") {
-                document.getElementById("successSound").play();
-            } else {
-                document.getElementById("errorSound").play();
-            }
+    liveStatus.className = "alert alert-warning text-center fw-bold";
+    liveStatus.innerText = isManual ? "Checking manually..." : "Processing scan...";
 
-            // Auto-stop scanner
-            scannerInstance.clear();
-
-            // SWEETALERT POPUP
-            Swal.fire({
-                title: data.status === "success" ? "Valid Ticket!" : "Invalid Ticket!",
-                html: `
-                    <p style="font-size:16px">${data.message}</p>
-                    <p><b>Ticket Code:</b> ${decodedText}</p>
-                `,
-                icon: data.status === "success" ? "success" : "error",
-                confirmButtonText: "Scan Again",
-                confirmButtonColor: data.status === "success" ? "#28a745" : "#d33"
-            }).then(() => {
-                // Restart scanner
-                scanStopped = false;
-                scannerInstance.render(onScanSuccess);
-            });
-
+    try {
+        // SEND COOKIES (VERY IMPORTANT)
+       const res = await fetch(`{{ route('admin.scan.check') }}?code=${encodeURIComponent(code)}`, {
+            credentials: "include"
         });
+
+
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+        const raw = await res.text();
+        let data;
+
+        // JSON VALIDATION
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            throw new Error("Invalid JSON received from server");
+        }
+
+        let icon = "error";
+        let sound = errorSound;
+        let confirmColor = "#d33";
+
+        if (data.title === "Used Ticket") {
+            icon = "warning";
+            sound = usedSound;
+            confirmColor = "#ffc107";
+        }
+
+        if (data.status === "success") {
+            icon = "success";
+            sound = successSound;
+            confirmColor = "#198754";
+        }
+
+        sound.play();
+
+        if (!isManual && scanner) await scanner.stop();
+
+        await Swal.fire({
+            title: data.title,
+            html: `
+                <p>${data.message}</p>
+                <p><b>Ticket:</b> ${code}</p>
+                ${data.used_at ? `<p><b>Used At:</b> ${data.used_at}</p>` : ""}
+            `,
+            icon,
+            confirmButtonText: "Scan Again",
+            confirmButtonColor: confirmColor,
+            allowOutsideClick: false
+        });
+
+        // RESET UI
+        isProcessing = false;
+        liveStatus.className = "alert alert-info text-center fw-bold";
+        liveStatus.innerText = "Awaiting Scan...";
+        inputManual.value = "";
+
+        if (!isManual && scanner) {
+            scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 260 });
+        }
+
+    } catch (e) {
+        console.error("CHECK ERROR:", e);
+        errorSound.play();
+
+        isProcessing = false;
+        liveStatus.className = "alert alert-danger text-center fw-bold";
+        liveStatus.innerText = `Server/network error! ${e.message}`;
+    }
 }
 
-// Initialize scanner
-scannerInstance = new Html5QrcodeScanner("reader", {
-    fps: 10,
-    qrbox: 250
+// ===========================================
+// QR SCAN CALLBACK
+// ===========================================
+function onScanSuccess(decodedText) {
+    if (!isProcessing) checkTicket(decodedText);
+}
+
+// ===========================================
+// INIT CAMERA
+// ===========================================
+function startScanner() {
+    scanner = new Html5QrcodeScanner("reader", {
+        fps: 10,
+        qrbox: 260,
+        rememberLastUsedCamera: true
+    });
+
+    scanner.render(onScanSuccess);
+}
+
+// ===========================================
+// MANUAL CHECK SUBMISSION
+// ===========================================
+manualForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    checkTicket(inputManual.value.trim(), true);
 });
 
-scannerInstance.render(onScanSuccess);
+// ===========================================
+window.addEventListener("load", startScanner);
 </script>
+
+</body>
+</html>
