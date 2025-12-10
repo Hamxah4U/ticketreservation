@@ -14,7 +14,7 @@
 
             <div class="card shadow-lg border-0 rounded-4">
                 <div class="card-header bg-primary text-white text-center py-3 rounded-top-4">
-                    <h3 class="mb-0">Buy Ticket</h3>
+                    <h3 class="mb-0">ARABIAN FESTIVAL TICKET RESERVATION</h3>
                 </div>
 
                 <div class="card-body p-4">
@@ -50,6 +50,18 @@
                                 required>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label">Ticket Type</label>
+                            <select id="ticketTypeSelect" name="tickettype_id" class="form-select form-select-lg" required>
+                                <option value="" disabled selected>Select a ticket type</option>
+                                @foreach($ticketTypes as $type)
+                                    <option value="{{ $type->id }}" data-price="{{ $type->price }}">
+                                        {{ $type->ticket_type_name }} - ₦{{ number_format($type->price, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
                         <div class="mb-4">
                             <label class="form-label">Ticket Price (NGN)</label>
                             <input 
@@ -57,7 +69,7 @@
                                 name="price" 
                                 class="form-control form-control-lg"
                                 step="0.01" 
-                                value="100" 
+                                value="" 
                                 required
                                 readonly>
                         </div>
@@ -73,6 +85,14 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('ticketTypeSelect').addEventListener('change', function () {
+    let price = this.options[this.selectedIndex].getAttribute('data-price');
+    document.querySelector('input[name="price"]').value = price;
+});
+</script>
+
 
 </body>
 </html>

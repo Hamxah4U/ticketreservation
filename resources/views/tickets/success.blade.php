@@ -38,7 +38,8 @@
 
 <div class="ticket-card text-center">
 
-    <h3 class="mb-1 text-success fw-bold">Payment Successful 🎉</h3>
+    <h3 class="mb-1 text-success fw-bold">Payment Successful for 🎉</h3>
+    <h3 class="mb-0">Arabian Festival Bauchi</h3>
 
     <!-- New polished message -->
     <p class="text-muted">

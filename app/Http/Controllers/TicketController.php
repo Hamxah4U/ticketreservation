@@ -2,19 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use App\Models\Ticket;
 use App\Models\Payment;
+use App\Models\Tickettype;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
-use Exception;
 
 class TicketController extends Controller
 {
     public function showPurchaseForm()
     {
-        return view('tickets.index');
+         $ticketTypes = Tickettype::orderBy('ticket_type_name', 'ASC')->get();
+
+        return view('tickets.index', compact('ticketTypes'));
     }
 
     public function createAndInitPayment(Request $request)
@@ -34,7 +37,8 @@ class TicketController extends Controller
             'price' => $data['price'],
             'qr_payload' => $ticket_code,
             'status' => 'valid',
-            'qrcodesvg' => $ticket_code.'svg'
+            'qrcodesvg' => $ticket_code.'png',
+            'tickettype_id' => $request->input('tickettype_id'),
         ]);
 
         $reference = 'ref_' . Str::random(12);
