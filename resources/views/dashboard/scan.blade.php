@@ -91,10 +91,15 @@ async function checkTicket(code, isManual = false) {
 
     try {
         // SEND COOKIES (VERY IMPORTANT)
-       const res = await fetch(`{{ route('admin.scan.check') }}?code=${encodeURIComponent(code)}`, {
-            credentials: "include"
+
+        const res = await fetch(`{{ route('admin.scan.check') }}?code=${encodeURIComponent(code)}`, {
+            credentials: "include",
+            redirect: "manual"
         });
 
+        if (res.type === "opaqueredirect") {
+            throw new Error("Authentication required — please login again.");
+        }
 
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
@@ -126,7 +131,7 @@ async function checkTicket(code, isManual = false) {
 
         sound.play();
 
-        if (!isManual && scanner) await scanner.stop();
+        if (!isManual && scanner) await scanner.clear();
 
         await Swal.fire({
             title: data.title,
@@ -148,7 +153,7 @@ async function checkTicket(code, isManual = false) {
         inputManual.value = "";
 
         if (!isManual && scanner) {
-            scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 260 });
+           scanner.render(onScanSuccess);
         }
 
     } catch (e) {
@@ -157,7 +162,7 @@ async function checkTicket(code, isManual = false) {
 
         isProcessing = false;
         liveStatus.className = "alert alert-danger text-center fw-bold";
-        liveStatus.innerText = `Server/network error! ${e.message}`;
+        liveStatus.innerText = `server/network error! ${e.message}`;
     }
 }
 

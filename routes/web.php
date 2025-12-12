@@ -27,6 +27,7 @@ Route::get('/admin/login', [SessionController::class,'create'])->name('admin.log
 
 // Login submission
 Route::post('/admin/login', [SessionController::class,'adminLogin'])->name('admin.login.post');
+Route::get('/admin/login', [SessionController::class, 'create'])->name('login');
 
 // Protected admin pages
 Route::middleware('auth')->group(function () {
@@ -40,9 +41,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/admin/scan', fn() => view('dashboard.scan'))->name('dashboard.scan');
 
-    Route::get('/admin/scan/check', [ScanController::class, 'check'])->name('admin.scan.check');
+    // Route::get('/admin/scan/check', [ScanController::class, 'check'])->name('admin.scan.check');
     Route::post('/admin/tickets/{ticket}/invalidate', [TicketController::class,'invalidate'])
         ->name('admin.tickets.invalidate');
 
     Route::post('/logout', [SessionController::class,'destroy'])->name('admin.logout');
 });
+
+Route::get('/admin/scan/check', [ScanController::class, 'check'])->name('admin.scan.check');
